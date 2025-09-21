@@ -2,30 +2,20 @@ plugins {
     id 'java'
     id 'org.springframework.boot' version '3.5.6'
     id 'io.spring.dependency-management' version '1.1.7'
+    id 'com.generator.module-info'
 }
 
 group = 'com'
 version = '0.0.1'
-description = 'generator'
+description = 'module-info-generator'
 
 java {
-    toolchain {
-        languageVersion = JavaLanguageVersion.of(25)
-    }
+    toolchain { languageVersion.set(JavaLanguageVersion.of(25)) }
+    withSourcesJar()
+    withJavadocJar()
 }
 
-apply from: "$rootDir/gradle/module-info.gradle"
-
-
-configurations {
-    compileOnly {
-        extendsFrom annotationProcessor
-    }
-}
-
-repositories {
-    mavenCentral()
-}
+repositories { mavenCentral() }
 
 dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-web'
@@ -34,20 +24,12 @@ dependencies {
 
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
-    annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor'
+
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
-tasks.named('test') {
-    useJUnitPlatform()
-}
-
-tasks.register('printModuleInfo') {
-    group = 'verification'
-    dependsOn 'generateModuleInfo'
-    doLast {
-        def f = file('src/main/java/module-info.java')
-        println f.exists() ? f.text : 'module-info.java not found'
-    }
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release.set(25)
 }

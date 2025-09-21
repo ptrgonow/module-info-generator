@@ -1,0 +1,21 @@
+plugins {
+    id 'java-gradle-plugin'
+    id 'groovy'
+}
+
+repositories { mavenCentral() }
+
+dependencies {
+    implementation gradleApi()
+    implementation localGroovy()
+    implementation 'org.yaml:snakeyaml:2.2'
+}
+
+gradlePlugin {
+    plugins {
+        moduleInfo {
+            id = 'com.generator.module-info'
+            implementationClass = 'com.generator.ModuleInfoPlugin'
+        }
+    }
+}
