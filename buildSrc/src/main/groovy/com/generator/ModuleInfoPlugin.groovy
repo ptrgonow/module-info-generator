@@ -9,6 +9,7 @@ import org.yaml.snakeyaml.Yaml
 class ModuleInfoPlugin implements Plugin<Project> {
     @Override
     void apply(Project p) {
+
         // 토글: -PmoduleGen.enabled=false
         def enabledProp = p.findProperty('moduleGen.enabled')
         boolean enabled = (enabledProp == null) ? true : enabledProp.toString().toBoolean()
@@ -46,7 +47,17 @@ class ModuleInfoPlugin implements Plugin<Project> {
             onlyIf { enabled }
             group = 'module-gen'
             description = "Generate src/main/java/module-info.java from ${cfgFile}"
+
+            inputs.file(cfgFile)
             outputs.file("${p.projectDir}/src/main/java/module-info.java")
+
+            doFirst {
+                File out = p.file('src/main/java/module-info.java')
+                if (out.exists()) {
+                    p.logger.lifecycle("[generateModuleInfo] Deleting old descriptor: ${out}")
+                    out.delete()
+                }
+            }
 
             doLast {
                 if (requires.any { it.contains('starter') }) {
