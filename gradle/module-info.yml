@@ -20,6 +20,8 @@ requiresStatic:
 
 exports:
   - com.generator.controller
+  - com.generator.dto
+  - com.generator.service
 
 opensRules:
   com.generator.controller:
