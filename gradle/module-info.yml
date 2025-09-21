@@ -1,0 +1,44 @@
+moduleName: generator
+requires:
+  - java.base
+  - java.net.http
+  - java.sql
+  - jakarta.annotation
+  - spring.core
+  - spring.beans
+  - spring.context
+  - spring.web
+  - spring.webmvc
+  - spring.boot
+  - spring.boot.autoconfigure
+  - org.slf4j
+  - io.github.cdimascio.dotenv.java
+  - com.fasterxml.jackson.databind
+
+requiresStatic:
+  - lombok
+
+exports:
+  - com.generator.controller
+
+opensRules:
+  com.generator.controller:
+    - spring.core
+    - spring.beans
+    - spring.context
+    - spring.web
+    - spring.boot
+    - com.fasterxml.jackson.databind
+  com.generator.dto:
+    - spring.core
+    - spring.beans
+    - spring.context
+    - spring.web
+    - spring.boot
+    - com.fasterxml.jackson.databind
+  com.generator.service:
+    - spring.core
+    - spring.beans
+    - spring.context
+    - spring.boot
+    - com.fasterxml.jackson.databind

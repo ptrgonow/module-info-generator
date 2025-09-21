@@ -1,0 +1,126 @@
+// 이 파일은 'moduleImports' YAML 설정을 바탕으로 생성된 가이드 예시입니다.
+// Java 25 이상, 또는 미리보기 설정에서 사용하세요. (IDE 언어 레벨 참고)
+// 이름 충돌(Date 등) 발생 시 단일 타입 임포트 또는 FQN으로 해결하세요. ${'//'} 예: import java.sql.Date; 또는 java.sql.Date ref. :contentReference[oaicite:6]{index=6}
+
+buildscript {
+    repositories { mavenCentral() }
+    dependencies { classpath 'org.yaml:snakeyaml:2.2' }
+}
+
+import org.yaml.snakeyaml.Yaml
+
+// --- 토글: -PmoduleGen.enabled=false 로 비활성화 ---
+def genEnabledProp = project.findProperty('moduleGen.enabled')
+def moduleGenEnabled = (genEnabledProp == null) ? true : genEnabledProp.toString().toBoolean()
+
+// --- 설정 파일 경로: 기본은 gradle/module-info.yml, -PmoduleGen.cfg 로 오버라이드 ---
+def cfgPath = project.findProperty('moduleGen.cfg') ?: "$rootDir/gradle/module-info.yml"
+def cfgFile = file(cfgPath)
+
+// SAMPLE YAML
+def SAMPLE_YAML = """\
+# module-info 설정 파일 예시 (필수 키: moduleName)
+moduleName: your.module.name
+requires: []   # 예: [ "java.base", "java.net.http" ]
+exports: []    # 외부로 공개할 패키지 목록
+opensRules: {} # 리플렉션 개방 규칙: 패키지: [대상모듈...]
+"""
+
+// 설정 없으면 샘플 생성 후 실패(명시적 구성을 강제)
+if (!cfgFile.exists()) {
+    def sample = file("$rootDir/gradle/module-info.sample.yml")
+    if (!sample.exists()) {
+        sample.parentFile.mkdirs()
+        sample.setText(SAMPLE_YAML, 'UTF-8')
+    }
+    throw new GradleException(
+            "module-info 설정 파일이 없습니다: ${cfgFile}\n" +
+                    "샘플이 생성되었습니다: ${sample}\n" +
+                    "샘플을 복사/수정하여 ${cfgFile} 를 만든 뒤 다시 빌드하세요.\n" +
+                    "또는 -PmoduleGen.cfg=/path/to/your.yml 로 경로를 지정할 수 있습니다."
+    )
+}
+
+// YAML 로드/검증
+Map cfgRaw
+try {
+    cfgRaw = new Yaml().load(cfgFile.newReader('UTF-8')) as Map ?: [:]
+    println "[module-info.yml] loaded from: ${cfgFile}"
+} catch (Throwable t) {
+    throw new GradleException("module-info 설정 YAML 파싱 실패: ${cfgFile}\n${t.message}", t)
+}
+
+// 타입 보정 + 유효성 검사
+String moduleName = (cfgRaw.moduleName ?: "").toString().trim()
+if (!moduleName) {
+    throw new GradleException("moduleName이 비어 있습니다. ${cfgFile} 에서 moduleName을 지정하세요.")
+}
+
+List<String> requires = []
+if (cfgRaw.requires instanceof List) {
+    requires = (cfgRaw.requires as List).collect { it?.toString()?.trim() }.findAll { it }
+} else if (cfgRaw.containsKey('requires') && cfgRaw.requires != null) {
+    throw new GradleException("requires는 배열(List)이어야 합니다. ${cfgFile}")
+}
+
+List<String> requiresStatic = []
+if (cfgRaw.requiresStatic instanceof List) {
+    requiresStatic = (cfgRaw.requiresStatic as List).collect { it?.toString()?.
+            trim() }.findAll { it }
+} else if (cfgRaw.containsKey('requiresStatic') && cfgRaw.requiresStatic != null) {
+    throw new GradleException("requiresStatic는 배열(List)이어야 합니다. ${cfgFile}")
+}
+
+
+List<String> exports = []
+if (cfgRaw.exports instanceof List) {
+    exports = (cfgRaw.exports as List).collect { it?.toString()?.trim() }.findAll { it }
+} else if (cfgRaw.containsKey('exports') && cfgRaw.exports != null) {
+    throw new GradleException("exports는 배열(List)이어야 합니다. ${cfgFile}")
+}
+
+Map<String, List<String>> opensRules = [:]
+if (cfgRaw.opensRules instanceof Map) {
+    (cfgRaw.opensRules as Map).each { k, v ->
+        def pkg = k?.toString()?.trim()
+        if (!pkg) return
+        if (v instanceof List) {
+            def targets = (v as List).collect { it?.toString()?.trim() }.findAll { it }
+            opensRules[pkg] = targets
+        } else {
+            throw new GradleException("opensRules.${k} 값은 배열(List)이어야 합니다. ${cfgFile}")
+        }
+    }
+} else if (cfgRaw.containsKey('opensRules') && cfgRaw.opensRules != null) {
+    throw new GradleException("opensRules는 맵(Map)이어야 합니다. ${cfgFile}")
+}
+
+// module-info.java 생성 태스크
+tasks.register('generateModuleInfo') {
+    onlyIf { moduleGenEnabled }
+    group = 'module-gen'
+    description = 'Generate src/main/java/module-info.java from YAML config'
+    outputs.file("$projectDir/src/main/java/module-info.java")
+
+    doLast {
+
+        def requiresBlock       = requires.collect { "  requires ${it};" }.join('\n')
+        def requiresStaticBlock = requiresStatic.collect { "  requires static ${it};" }.join('\n')
+        def exportsBlock        = exports.collect { "  exports ${it};" }.join('\n')
+        def opensBlock          = opensRules && !opensRules.isEmpty()
+                ? opensRules.collect { pkg, targets -> "  opens ${pkg} to ${targets.join(', ')};" }.join('\n')
+                : ""
+
+        def sections = []
+        if (requiresBlock)       sections << "  // ----- requires -----\n${requiresBlock}"
+        if (requiresStaticBlock) sections << "  // ----- requires static -----\n${requiresStaticBlock}"
+        if (exportsBlock)        sections << "  // ----- exports -----\n${exportsBlock}"
+        if (opensBlock)          sections << "  // ----- opens (reflection) -----\n${opensBlock}"
+
+        def content = "module ${moduleName} {\n\n" + sections.join("\n\n") + "\n}\n"
+        file('src/main/java/module-info.java').setText(content, 'UTF-8')
+    }
+}
+
+// compileJava 전에 실행
+tasks.named('compileJava') { dependsOn 'generateModuleInfo' }
